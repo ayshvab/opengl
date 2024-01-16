@@ -43,11 +43,13 @@ int main() {
 
   const char* vertex_shader   = read_shader( "test.vert" );
   const char* fragment_shader = read_shader( "test.frag" );
+  const char* fragment_shader_2  = read_shader("test_2.frag"); 
 
   /* GL shader objects for vertex and fragment shader [components] */
-  GLuint vert_shader, frag_shader;
+  GLuint vert_shader, frag_shader, frag_shader_2;
   /* GL shader programm object [combined, to link] */
   GLuint shader_programm;
+  GLuint shader_programm_2;
 
   /* start GL context and O/S window using the GLFW helper library */
   if ( !glfwInit() ) {
@@ -147,6 +149,14 @@ int main() {
   glAttachShader( shader_programm, vert_shader );
   glLinkProgram( shader_programm );
 
+  frag_shader_2 = glCreateShader( GL_FRAGMENT_SHADER );
+  glShaderSource( frag_shader_2, 1, &fragment_shader_2, NULL );
+  glCompileShader( frag_shader_2 );
+  shader_programm_2 = glCreateProgram();
+  glAttachShader( shader_programm_2, frag_shader_2 );
+  glAttachShader( shader_programm_2, vert_shader );
+  glLinkProgram( shader_programm_2 );
+
   /* this loop clears the drawing surface, then draws the geometry described
       by the VAO onto the drawing surface. we 'poll events' to see if the window
   was closed, etc. finally, we 'swap the buffers' which displays our drawing
@@ -163,6 +173,7 @@ int main() {
     /* draw points 0-3 from the currently bound VAO with current in-use shader */
     glDrawArrays( GL_TRIANGLES, 0, 6 );
 
+    glUseProgram( shader_programm_2 );
     glBindVertexArray(vao_2);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     /* update other events like input handling */
