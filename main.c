@@ -27,16 +27,19 @@ int main() {
   GLFWwindow* window = NULL;
   const GLubyte* renderer;
   const GLubyte* version;
-  GLuint vao;
+  GLuint vao_1;
+  GLuint vao_2;
   GLuint points_vbo;
   GLuint colors_vbo;
+  GLuint inverted_points_vbo;
+  GLuint inverted_points_colors_vbo;
 
   /* geometry to use. these are 3 xyz points (9 floats total) to make a triangle */
-  GLfloat points[] = { 0.0f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f, 
-  					   0.0f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f };
+  GLfloat points[] = { 0.0f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f };
+  GLfloat colors[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
 
-  GLfloat colors[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-  1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
+  GLfloat inverted_points[] = { 0.0f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f };
+  GLfloat inverted_points_colors[] = { 0.8f, 0.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, 0.0f, 0.0f };
 
   const char* vertex_shader   = read_shader( "test.vert" );
   const char* fragment_shader = read_shader( "test.frag" );
@@ -86,19 +89,27 @@ int main() {
   data on the graphics adapter's memory. in our case - the vertex points */
   glGenBuffers( 1, &points_vbo );
   glBindBuffer( GL_ARRAY_BUFFER, points_vbo );
-  glBufferData( GL_ARRAY_BUFFER, 18 * sizeof( GLfloat ), points, GL_STATIC_DRAW );
+  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), points, GL_STATIC_DRAW );
 
   glGenBuffers( 1, &colors_vbo );
   glBindBuffer( GL_ARRAY_BUFFER, colors_vbo );
-  glBufferData( GL_ARRAY_BUFFER, 18 * sizeof( GLfloat ), colors, GL_STATIC_DRAW );
+  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), colors, GL_STATIC_DRAW );
+
+  glGenBuffers( 1, &inverted_points_vbo );
+  glBindBuffer( GL_ARRAY_BUFFER, inverted_points_vbo );
+  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), inverted_points, GL_STATIC_DRAW );
+
+  glGenBuffers( 1, &inverted_points_colors_vbo );
+  glBindBuffer( GL_ARRAY_BUFFER, inverted_points_colors_vbo );
+  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), inverted_points_colors, GL_STATIC_DRAW );
 
   /* the vertex array object (VAO) is a little descriptor that defines which
   data from vertex buffer objects should be used as input variables to vertex
   shaders. in our case - use our only VBO, and say 'every three floats is a
   variable' */
-  glGenVertexArrays( 1, &vao );
-  glBindVertexArray( vao );
-  /* "attribute #0 should be enabled when this vao is bound" */
+  glGenVertexArrays( 1, &vao_1 );
+  glBindVertexArray( vao_1 );
+  /* "attribute #0 should be enabled when this vao_1 is bound" */
   glEnableVertexAttribArray( 0 );
   /* this VBO is already bound, but it's a good habit to explicitly specify which
   VBO's data the following vertex attribute pointer refers to */
@@ -110,6 +121,16 @@ int main() {
   glEnableVertexAttribArray( 1 );
   glBindBuffer( GL_ARRAY_BUFFER, colors_vbo );
   glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, NULL );
+
+  glGenVertexArrays(1, &vao_2);
+  glBindVertexArray(vao_2);
+  glEnableVertexAttribArray( 0 );
+  glBindBuffer(GL_ARRAY_BUFFER, inverted_points_vbo);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray( 1 );
+  glBindBuffer( GL_ARRAY_BUFFER, inverted_points_colors_vbo );
+  glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, NULL );
+
 
   /* here we copy the shader strings into GL shaders, and compile them. we
   then create an executable shader 'program' and attach both of the compiled
@@ -136,10 +157,14 @@ int main() {
   while ( !glfwWindowShouldClose( window ) ) {
     /* wipe the drawing surface clear */
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+    glClearColor(0.6f, 0.6f, 0.8f, 1.0f);
     glUseProgram( shader_programm );
-    glBindVertexArray( vao );
+    glBindVertexArray( vao_1 );
     /* draw points 0-3 from the currently bound VAO with current in-use shader */
     glDrawArrays( GL_TRIANGLES, 0, 6 );
+
+    glBindVertexArray(vao_2);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
     /* update other events like input handling */
     glfwPollEvents();
     /* put the stuff we've been drawing onto the display */
