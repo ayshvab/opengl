@@ -5,20 +5,22 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-#define handle_error() ({printf("Error %s\n", strerror(errno)); exit(-1);})
+#define ARRAY_SIZE( arr ) ( sizeof( arr ) / sizeof( ( arr )[0] ) )
+#define handle_error()                                                                                                                                                                                 \
+  ( {                                                                                                                                                                                                  \
+    printf( "Error %s\n", strerror( errno ) );                                                                                                                                                         \
+    exit( -1 );                                                                                                                                                                                        \
+  } )
 
-char* read_shader(char* filepath) {
-	FILE *fp = fopen(filepath, "r");
-	if (!fp) {
-		handle_error();
-	}
+char* read_shader( char* filepath ) {
+  FILE* fp = fopen( filepath, "r" );
+  if ( !fp ) { handle_error(); }
 
-	size_t buffer_size = 4096;
-	char *buffer = calloc(buffer_size, 1);
-	fread(buffer, buffer_size, sizeof(*buffer), fp);
+  size_t buffer_size = 4096;
+  char* buffer       = calloc( buffer_size, 1 );
+  fread( buffer, buffer_size, sizeof( *buffer ), fp );
 
-	return buffer;
+  return buffer;
 }
 
 int main() {
@@ -26,18 +28,21 @@ int main() {
   const GLubyte* renderer;
   const GLubyte* version;
   GLuint vao;
-  GLuint vbo;
+  GLuint points_vbo;
+  GLuint colors_vbo;
 
   /* geometry to use. these are 3 xyz points (9 floats total) to make a triangle */
   GLfloat points[] = { 0.0f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f };
 
-  const char* vertex_shader = read_shader("test.vert");
-  const char* fragment_shader = read_shader("test.frag");
+  GLfloat colors[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
+
+  const char* vertex_shader   = read_shader( "test.vert" );
+  const char* fragment_shader = read_shader( "test.frag" );
 
   /* GL shader objects for vertex and fragment shader [components] */
   GLuint vert_shader, frag_shader;
-  /* GL shader programme object [combined, to link] */
-  GLuint shader_programme;
+  /* GL shader programm object [combined, to link] */
+  GLuint shader_programm;
 
   /* start GL context and O/S window using the GLFW helper library */
   if ( !glfwInit() ) {
@@ -77,9 +82,13 @@ int main() {
 
   /* a vertex buffer object (VBO) is created here. this stores an array of
   data on the graphics adapter's memory. in our case - the vertex points */
-  glGenBuffers( 1, &vbo );
-  glBindBuffer( GL_ARRAY_BUFFER, vbo );
+  glGenBuffers( 1, &points_vbo );
+  glBindBuffer( GL_ARRAY_BUFFER, points_vbo );
   glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), points, GL_STATIC_DRAW );
+
+  glGenBuffers( 1, &colors_vbo );
+  glBindBuffer( GL_ARRAY_BUFFER, colors_vbo );
+  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), colors, GL_STATIC_DRAW );
 
   /* the vertex array object (VAO) is a little descriptor that defines which
   data from vertex buffer objects should be used as input variables to vertex
@@ -91,10 +100,14 @@ int main() {
   glEnableVertexAttribArray( 0 );
   /* this VBO is already bound, but it's a good habit to explicitly specify which
   VBO's data the following vertex attribute pointer refers to */
-  glBindBuffer( GL_ARRAY_BUFFER, vbo );
+  glBindBuffer( GL_ARRAY_BUFFER, points_vbo );
   /* "attribute #0 is created from every 3 variables in the above buffer, of type
   float (i.e. make me vec3s)" */
   glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, NULL );
+
+  glEnableVertexAttribArray(1);
+  glBindBuffer(GL_ARRAY_BUFFER, colors_vbo);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
   /* here we copy the shader strings into GL shaders, and compile them. we
   then create an executable shader 'program' and attach both of the compiled
@@ -106,10 +119,10 @@ int main() {
   frag_shader = glCreateShader( GL_FRAGMENT_SHADER );
   glShaderSource( frag_shader, 1, &fragment_shader, NULL );
   glCompileShader( frag_shader );
-  shader_programme = glCreateProgram();
-  glAttachShader( shader_programme, frag_shader );
-  glAttachShader( shader_programme, vert_shader );
-  glLinkProgram( shader_programme );
+  shader_programm = glCreateProgram();
+  glAttachShader( shader_programm, frag_shader );
+  glAttachShader( shader_programm, vert_shader );
+  glLinkProgram( shader_programm );
 
   /* this loop clears the drawing surface, then draws the geometry described
       by the VAO onto the drawing surface. we 'poll events' to see if the window
@@ -121,7 +134,7 @@ int main() {
   while ( !glfwWindowShouldClose( window ) ) {
     /* wipe the drawing surface clear */
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-    glUseProgram( shader_programme );
+    glUseProgram( shader_programm );
     glBindVertexArray( vao );
     /* draw points 0-3 from the currently bound VAO with current in-use shader */
     glDrawArrays( GL_TRIANGLES, 0, 3 );
