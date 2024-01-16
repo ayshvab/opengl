@@ -32,9 +32,11 @@ int main() {
   GLuint colors_vbo;
 
   /* geometry to use. these are 3 xyz points (9 floats total) to make a triangle */
-  GLfloat points[] = { 0.0f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f };
+  GLfloat points[] = { 0.0f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f, 
+  					   0.0f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f };
 
-  GLfloat colors[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
+  GLfloat colors[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+  1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
 
   const char* vertex_shader   = read_shader( "test.vert" );
   const char* fragment_shader = read_shader( "test.frag" );
@@ -56,7 +58,7 @@ int main() {
   glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
   glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
 
-  window = glfwCreateWindow( 640, 480, "Hello Triangle", NULL, NULL );
+  window = glfwCreateWindow( 640, 480, "Hello OpengGL", NULL, NULL );
   if ( !window ) {
     fprintf( stderr, "ERROR: could not open window with GLFW3\n" );
     glfwTerminate();
@@ -84,11 +86,11 @@ int main() {
   data on the graphics adapter's memory. in our case - the vertex points */
   glGenBuffers( 1, &points_vbo );
   glBindBuffer( GL_ARRAY_BUFFER, points_vbo );
-  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), points, GL_STATIC_DRAW );
+  glBufferData( GL_ARRAY_BUFFER, 18 * sizeof( GLfloat ), points, GL_STATIC_DRAW );
 
   glGenBuffers( 1, &colors_vbo );
   glBindBuffer( GL_ARRAY_BUFFER, colors_vbo );
-  glBufferData( GL_ARRAY_BUFFER, 9 * sizeof( GLfloat ), colors, GL_STATIC_DRAW );
+  glBufferData( GL_ARRAY_BUFFER, 18 * sizeof( GLfloat ), colors, GL_STATIC_DRAW );
 
   /* the vertex array object (VAO) is a little descriptor that defines which
   data from vertex buffer objects should be used as input variables to vertex
@@ -105,9 +107,9 @@ int main() {
   float (i.e. make me vec3s)" */
   glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, NULL );
 
-  glEnableVertexAttribArray(1);
-  glBindBuffer(GL_ARRAY_BUFFER, colors_vbo);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray( 1 );
+  glBindBuffer( GL_ARRAY_BUFFER, colors_vbo );
+  glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, NULL );
 
   /* here we copy the shader strings into GL shaders, and compile them. we
   then create an executable shader 'program' and attach both of the compiled
@@ -137,7 +139,7 @@ int main() {
     glUseProgram( shader_programm );
     glBindVertexArray( vao );
     /* draw points 0-3 from the currently bound VAO with current in-use shader */
-    glDrawArrays( GL_TRIANGLES, 0, 3 );
+    glDrawArrays( GL_TRIANGLES, 0, 6 );
     /* update other events like input handling */
     glfwPollEvents();
     /* put the stuff we've been drawing onto the display */
