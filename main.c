@@ -85,6 +85,52 @@ void glfw_error_callback(int error, const char* description) {
   gl_log_err("GLFW ERROR: code %i msg: %s\n", error, description);
 }
 
+void log_gl_params() {
+  GLenum params[] = {
+    GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,
+    GL_MAX_CUBE_MAP_TEXTURE_SIZE,
+    GL_MAX_DRAW_BUFFERS,
+    GL_MAX_FRAGMENT_UNIFORM_COMPONENTS,
+    GL_MAX_TEXTURE_IMAGE_UNITS,
+    GL_MAX_TEXTURE_SIZE,
+    GL_MAX_VARYING_FLOATS,
+    GL_MAX_VERTEX_ATTRIBS,
+    GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS,
+    GL_MAX_VERTEX_UNIFORM_COMPONENTS,
+    GL_MAX_VIEWPORT_DIMS,
+    GL_STEREO,
+  };
+  const char* names[] = {
+    "GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS",
+    "GL_MAX_CUBE_MAP_TEXTURE_SIZE",
+    "GL_MAX_DRAW_BUFFERS",
+    "GL_MAX_FRAGMENT_UNIFORM_COMPONENTS",
+    "GL_MAX_TEXTURE_IMAGE_UNITS",
+    "GL_MAX_TEXTURE_SIZE",
+    "GL_MAX_VARYING_FLOATS",
+    "GL_MAX_VERTEX_ATTRIBS",
+    "GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS",
+    "GL_MAX_VERTEX_UNIFORM_COMPONENTS",
+    "GL_MAX_VIEWPORT_DIMS",
+    "GL_STEREO",    
+  };
+  gl_log("GL Context Params:\n");
+  for (int i = 0; i < 10; i++) {
+    int v = 0;
+    glGetIntegerv(params[i], &v);
+    gl_log("%s %i\n", names[i], v);
+  }
+  // others
+  int v[2] = {0};
+  glGetIntegerv(params[10], v);
+  gl_log("%s %i %i\n", names[10], v[0], v[1]);
+  unsigned char s = 0;
+  glGetBooleanv(params[11], &s);
+  gl_log("%s %u\n", names[11], (unsigned int)s);
+  gl_log("-----------------------------\n");
+}
+
+
 // Reported window size
 int g_win_width = 640;
 int g_win_height = 480;
@@ -180,6 +226,8 @@ int main() {
   version  = glGetString( GL_VERSION );  /* version as a string */
   printf( "Renderer: %s\n", renderer );
   printf( "OpenGL version supported %s\n", version );
+  gl_log("renderer: %s\nversion: %s\n", renderer, version);
+  log_gl_params();
 
   /* tell GL to only draw onto a pixel if the shape is closer to the viewer
   than anything already drawn at that pixel */
