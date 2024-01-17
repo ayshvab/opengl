@@ -4,6 +4,13 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <time.h>
+
+#define GL_LOG_FILE "gl.log"
+
+typedef int32_t b32;
 
 #define ARRAY_SIZE( arr ) ( sizeof( arr ) / sizeof( ( arr )[0] ) )
 #define handle_error()                                                                                                                                                                                 \
@@ -11,6 +18,57 @@
     printf( "Error %s\n", strerror( errno ) );                                                                                                                                                         \
     exit( -1 );                                                                                                                                                                                        \
   } )
+
+
+b32 restart_gl_log() {
+  FILE* file = fopen( GL_LOG_FILE, "w" );
+  if ( !file ) {
+    fprintf( stderr, "ERROR: could not open GL_LOG_FILE log file %s for writing\n", GL_LOG_FILE );
+    return 0;
+  }
+  time_t now = time( NULL );
+  char* date = ctime( &now );
+  fprintf( file, "GL_LOG_FILE log, local time %s\n", date );
+  fclose( file );
+  return 1;
+}
+
+b32 gl_log( const char* message, ... ) {
+  va_list argptr;
+
+  FILE* file = fopen( GL_LOG_FILE, "a" );
+  if ( !file ) {
+    fprintf( stderr, "ERROR: could not open GL_LOG_FILE %s file for appending\n", GL_LOG_FILE );
+    return 0;
+  }
+
+  va_start( argptr, message );
+  vfprintf( file, message, argptr );
+  va_end( argptr );
+  fclose( file );
+  return 1;
+}
+
+b32 gl_log_err( const char* message, ... ) {
+  va_list argptr;
+
+  FILE* file = fopen( GL_LOG_FILE, "a" );
+  if ( !file ) {
+    fprintf( stderr, "ERROR: could not open GL_LOG_FILE %s file for appending\n", GL_LOG_FILE );
+    return 0;
+  }
+
+  va_start( argptr, message );
+  vfprintf( file, message, argptr );
+  va_end( argptr );
+
+  va_start( argptr, message );
+  vfprintf( stderr, message, argptr );
+  va_end( argptr );
+
+  fclose( file );
+  return 1;
+}
 
 char* read_shader( char* filepath ) {
   FILE* fp = fopen( filepath, "r" );
@@ -23,8 +81,32 @@ char* read_shader( char* filepath ) {
   return buffer;
 }
 
+void glfw_error_callback(int error, const char* description) {
+  gl_log_err("GLFW ERROR: code %i msg: %s\n", error, description);
+}
+
+// Reported window size
+int g_win_width = 640;
+int g_win_height = 480;
+// Keep track of framebuffer size for things like the viewport and the mouse cursor
+int g_fb_width = 640;
+int g_fb_height = 480;
+
+void glfw_window_size_callback(GLFWwindow* window, int width, int height) {
+  (void)window;
+  g_win_width = width;
+  g_win_height = height;
+}
+
+void glfw_framebuffer_resize_callback(GLFWwindow* window, int width, int height) {
+  (void)window;
+  g_fb_width = width;
+  g_fb_height = height;
+
+  /* TODO: Later update any perspective matrices used here */
+}
+
 int main() {
-  GLFWwindow* window = NULL;
   const GLubyte* renderer;
   const GLubyte* version;
   GLuint vao_1;
@@ -38,12 +120,12 @@ int main() {
   GLfloat points[] = { 0.0f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f };
   GLfloat colors[] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f };
 
-  GLfloat inverted_points[] = { 0.0f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f };
+  GLfloat inverted_points[]        = { 0.0f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f };
   GLfloat inverted_points_colors[] = { 0.8f, 0.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, 0.0f, 0.0f };
 
-  const char* vertex_shader   = read_shader( "test.vert" );
-  const char* fragment_shader = read_shader( "test.frag" );
-  const char* fragment_shader_2  = read_shader("test_2.frag"); 
+  const char* vertex_shader     = read_shader( "test.vert" );
+  const char* fragment_shader   = read_shader( "test.frag" );
+  const char* fragment_shader_2 = read_shader( "test_2.frag" );
 
   /* GL shader objects for vertex and fragment shader [components] */
   GLuint vert_shader, frag_shader, frag_shader_2;
@@ -51,6 +133,11 @@ int main() {
   GLuint shader_programm;
   GLuint shader_programm_2;
 
+  if (!restart_gl_log()) { 
+    handle_error(); 
+  }
+  gl_log("starting GLFW\n%s\n", glfwGetVersionString());
+  glfwSetErrorCallback(glfw_error_callback);
   /* start GL context and O/S window using the GLFW helper library */
   if ( !glfwInit() ) {
     fprintf( stderr, "ERROR: could not start GLFW3\n" );
@@ -63,13 +150,26 @@ int main() {
   glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
   glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
 
-  window = glfwCreateWindow( 640, 480, "Hello OpengGL", NULL, NULL );
+  glfwWindowHint(GLFW_SAMPLES, 4);
+
+  // Fullscreen
+  // GLFWmonitor* mon = glfwGetPrimaryMonitor();
+  // const GLFWvidmode* vmode = glfwGetVideoMode(mon);
+  // GLFWwindow* window = glfwCreateWindow(vmode->width, vmode->height, "Hello OpenGL", mon, NULL);
+  GLFWwindow* window = glfwCreateWindow(g_win_width, g_win_height, "Hello OpenGL", NULL, NULL);
   if ( !window ) {
     fprintf( stderr, "ERROR: could not open window with GLFW3\n" );
     glfwTerminate();
     return 1;
   }
+  glfwSetFramebufferSizeCallback( window, glfw_framebuffer_resize_callback );
+  glfwSetWindowSizeCallback( window, glfw_window_size_callback );
   glfwMakeContextCurrent( window );
+
+  glfwGetWindowSize( window, &g_win_width, &g_win_height );
+  gl_log( "initial window dims %ix%i\n", g_win_width, g_win_height );
+  glfwGetFramebufferSize( window, &g_fb_width, &g_fb_height );
+  gl_log( "initial framebuffer dims %ix%i\n", g_fb_width, g_fb_height );
 
   /* start GLEW extension handler */
   glewExperimental = GL_TRUE;
@@ -124,15 +224,14 @@ int main() {
   glBindBuffer( GL_ARRAY_BUFFER, colors_vbo );
   glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, NULL );
 
-  glGenVertexArrays(1, &vao_2);
-  glBindVertexArray(vao_2);
+  glGenVertexArrays( 1, &vao_2 );
+  glBindVertexArray( vao_2 );
   glEnableVertexAttribArray( 0 );
-  glBindBuffer(GL_ARRAY_BUFFER, inverted_points_vbo);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glBindBuffer( GL_ARRAY_BUFFER, inverted_points_vbo );
+  glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, NULL );
   glEnableVertexAttribArray( 1 );
   glBindBuffer( GL_ARRAY_BUFFER, inverted_points_colors_vbo );
   glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 0, NULL );
-
 
   /* here we copy the shader strings into GL shaders, and compile them. we
   then create an executable shader 'program' and attach both of the compiled
@@ -167,19 +266,24 @@ int main() {
   while ( !glfwWindowShouldClose( window ) ) {
     /* wipe the drawing surface clear */
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-    glClearColor(0.6f, 0.6f, 0.8f, 1.0f);
+    glViewport(0, 0, g_fb_width, g_fb_height);
+    glClearColor( 0.6f, 0.6f, 0.8f, 1.0f );
     glUseProgram( shader_programm );
     glBindVertexArray( vao_1 );
     /* draw points 0-3 from the currently bound VAO with current in-use shader */
     glDrawArrays( GL_TRIANGLES, 0, 6 );
 
     glUseProgram( shader_programm_2 );
-    glBindVertexArray(vao_2);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray( vao_2 );
+    glDrawArrays( GL_TRIANGLES, 0, 6 );
     /* update other events like input handling */
     glfwPollEvents();
     /* put the stuff we've been drawing onto the display */
     glfwSwapBuffers( window );
+
+    if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_ESCAPE)) {
+      glfwSetWindowShouldClose(window, 1);
+    }
   }
 
   /* close GL context and any other GLFW resources */
