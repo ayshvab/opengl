@@ -130,6 +130,23 @@ void log_gl_params() {
   gl_log("-----------------------------\n");
 }
 
+double previous_seconds;
+int frame_count;
+void update_fps_counter(GLFWwindow* window) {
+  double current_seconds;
+  double elapsed_seconds;
+  current_seconds = glfwGetTime();
+  elapsed_seconds = current_seconds - previous_seconds;
+  if (elapsed_seconds > 0.25) {
+    previous_seconds = current_seconds;
+    char tmp[128];
+    double fps = (double)frame_count / elapsed_seconds;
+    sprintf(tmp, "opengl @ fps: %.2f", fps);
+    glfwSetWindowTitle(window, tmp);
+    frame_count = 0;
+  }
+  frame_count++;
+}
 
 // Reported window size
 int g_win_width = 640;
@@ -312,6 +329,7 @@ int main() {
       surface. hence the 'swap' idea. in a single-buffering system we would see
       stuff being drawn one-after-the-other */
   while ( !glfwWindowShouldClose( window ) ) {
+    update_fps_counter(window);
     /* wipe the drawing surface clear */
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
     glViewport(0, 0, g_fb_width, g_fb_height);
