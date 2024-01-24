@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdarg.h>
 #include <time.h>
 #include <assert.h>
@@ -12,8 +13,12 @@
 #define GL_LOG_FILE "gl.log"
 
 typedef int32_t b32;
+typedef uint32_t u32;
+typedef int32_t i32;
+typedef ptrdiff_t isize;
+// typedef size_t usize;
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define ARRAY_SIZE(arr) (isize)(sizeof(arr) / sizeof((arr)[0]))
 #define handle_error()                         \
 	({                                         \
 		printf("Error %s\n", strerror(errno)); \
@@ -158,21 +163,23 @@ print_program_info_log(GLuint sp) {
 	printf("program info log for GL index %i:\n%s", sp, log);
 }
 
-b32 validate_shader(GLuint sp) {
-  int params = -1;
+b32
+validate_shader(GLuint sp) {
+	int params = -1;
 
-  glValidateProgram( sp );
-  glGetProgramiv( sp, GL_VALIDATE_STATUS, &params );
-  printf( "program %i GL_VALIDATE_STATUS = %i\n", sp, params );
-  if ( GL_TRUE != params ) {
-    print_program_info_log( sp );
-    return 0;
-  }
-  return 1;
+	glValidateProgram(sp);
+	glGetProgramiv(sp, GL_VALIDATE_STATUS, &params);
+	printf("program %i GL_VALIDATE_STATUS = %i\n", sp, params);
+	if (GL_TRUE != params) {
+		print_program_info_log(sp);
+		return 0;
+	}
+	return 1;
 }
 
-void print_all_about_shader(GLuint sp) {
-  // TODO
+void
+print_all_about_shader(GLuint sp) {
+	// TODO
 }
 
 double previous_seconds;
@@ -217,6 +224,92 @@ glfw_framebuffer_resize_callback(GLFWwindow* window, int width, int height) {
 	/* TODO: Later update any perspective matrices used here */
 }
 
+//////////////////////////////////////
+// shader manager
+enum {
+	UNIFORM_COLOR_0 = 0,
+};
+
+struct shader_program {
+	GLuint handle;
+	GLint uniform_locations[10];
+};
+
+struct shaders {
+	b32 ok;
+	isize active_index;
+	struct shader_program programs[16];
+	isize shader_programs_len;
+};
+
+static struct shaders shaders = {0};
+
+static void
+load_shader_program(struct shaders* shaders, isize shader_program_index, char* vs_filename, char* fs_filename) {
+	assert(shader_program_index < ARRAY_SIZE(shaders->programs));
+	assert(vs_filename);
+	assert(fs_filename);
+
+	// TODO simplify memory allocations: use arenas
+	const char* vs_text = read_shader(vs_filename);
+	GLuint vert_shader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vert_shader, 1, &vs_text, NULL);
+	glCompileShader(vert_shader);
+	free((void*)vs_text);
+
+	int params = -1;
+	glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &params);
+	if (GL_TRUE != params) {
+		fprintf(stderr, "ERROR: GL shader index %i did not compile\n", vert_shader);
+		print_shader_info_log(vert_shader);
+		exit(1);
+	}
+
+	// TODO simplify memory allocations: use arenas
+	const char* fs_text = read_shader(fs_filename);
+	GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(frag_shader, 1, &fs_text, NULL);
+	glCompileShader(frag_shader);
+	free((void*)fs_text);
+
+	glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &params);
+	if (GL_TRUE != params) {
+		fprintf(stderr, "ERROR: GL shader index %i did not compile\n", frag_shader);
+		print_shader_info_log(frag_shader);
+		exit(1);
+	}
+
+	GLuint shader_program_handle = glCreateProgram();
+	glAttachShader(shader_program_handle, frag_shader);
+	glAttachShader(shader_program_handle, vert_shader);
+	glLinkProgram(shader_program_handle);
+
+	/* check for shader linking errors - very important! */
+	glGetProgramiv(shader_program_handle, GL_LINK_STATUS, &params);
+	if (GL_TRUE != params) {
+		fprintf(stderr, "ERROR: could not link shader programme GL index %i\n", shader_program_handle);
+		print_program_info_log(shader_program_handle);
+		exit(1);
+	}
+
+	print_all_about_shader(shader_program_handle);
+	b32 result = validate_shader(shader_program_handle);
+	assert(result);
+
+	/* Init shader uniform. */
+	GLint color_loc = glGetUniformLocation(shader_program_handle, "inputColor");
+	assert(color_loc > -1);
+
+	shaders->programs[shader_program_index] = (struct shader_program){
+	    .handle = shader_program_handle,
+	    .uniform_locations =
+	        {
+	            [UNIFORM_COLOR_0] = color_loc,
+	        },
+	};
+	return;
+}
+
 int
 main() {
 	const GLubyte* renderer;
@@ -234,16 +327,6 @@ main() {
 
 	GLfloat inverted_points[] = {0.0f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.0f};
 	GLfloat inverted_points_colors[] = {0.8f, 0.0f, 0.0f, 0.0f, 0.8f, 0.0f, 1.0f, 0.0f, 0.0f};
-
-	const char* vertex_shader = read_shader("test.vert");
-	const char* fragment_shader = read_shader("test.frag");
-	const char* fragment_shader_2 = read_shader("test_2.frag");
-
-	/* GL shader objects for vertex and fragment shader [components] */
-	GLuint vert_shader, frag_shader, frag_shader_2;
-	/* GL shader programm object [combined, to link] */
-	GLuint shader_program;
-	GLuint shader_programm_2;
 
 	if (!restart_gl_log()) {
 		handle_error();
@@ -348,47 +431,9 @@ main() {
 	glBindBuffer(GL_ARRAY_BUFFER, inverted_points_colors_vbo);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-	vert_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vert_shader, 1, &vertex_shader, NULL);
-	glCompileShader(vert_shader);
-
-	int params = -1;
-	glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &params);
-	if (GL_TRUE != params) {
-		fprintf(stderr, "ERROR: GL shader index %i did not compile\n", vert_shader);
-		print_shader_info_log(vert_shader);
-		return 1;
-	}
-
-	frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(frag_shader, 1, &fragment_shader, NULL);
-	glCompileShader(frag_shader);
-
-	glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &params);
-	if (GL_TRUE != params) {
-		fprintf(stderr, "ERROR: GL shader index %i did not compile\n", frag_shader);
-		print_shader_info_log(frag_shader);
-		return 1;
-	}
-
-	shader_program = glCreateProgram();
-	glAttachShader(shader_program, frag_shader);
-	glAttachShader(shader_program, vert_shader);
-	glLinkProgram(shader_program);
-
-	/* check for shader linking errors - very important! */
-	glGetProgramiv(shader_program, GL_LINK_STATUS, &params);
-	if (GL_TRUE != params) {
-		fprintf(stderr, "ERROR: could not link shader programme GL index %i\n", shader_program);
-		print_program_info_log(shader_program);
-		return 1;
-	}
-  print_all_about_shader(shader_program);
-  b32 result = validate_shader(shader_program);
-  assert(result);
-  // Init shader uniform. TODO remember uniform location for this shader
-  GLint color_loc = glGetUniformLocation(shader_program, "inputColor");
-  assert(color_loc > -1);
+	// TODO Move to shader managment
+	isize shader_program_0 = 0;
+	load_shader_program(&shaders, shader_program_0, "test.vert", "test.frag");
 
 	// frag_shader_2 = glCreateShader(GL_FRAGMENT_SHADER);
 	// glShaderSource(frag_shader_2, 1, &fragment_shader_2, NULL);
@@ -412,9 +457,14 @@ main() {
 		glViewport(0, 0, g_fb_width, g_fb_height);
 		glClearColor(0.6f, 0.6f, 0.8f, 1.0f);
 
-    glUseProgram(shader_program);
-    // @@@ Update uniform only when need it. Do not upate it on every change
-    glUniform4f(color_loc, 1.0f, 0.0f, 0.0f, 1.0f);
+		shaders.active_index = shader_program_0;
+		glUseProgram(shaders.programs[shaders.active_index].handle);
+		// @TODO Update uniform only when need it. Do not upate it on every change
+		b32 needUpdateColor = 1;
+		if (needUpdateColor) {
+			glUniform4f(shaders.programs[shaders.active_index].uniform_locations[UNIFORM_COLOR_0], 1.0f, 0.0f, 0.0f,
+			            1.0f);
+		}
 
 		glBindVertexArray(vao_1);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -430,6 +480,9 @@ main() {
 
 		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_ESCAPE)) {
 			glfwSetWindowShouldClose(window, 1);
+		}
+		if (GLFW_PRESS == glfwGetKey(window, GLFW_KEY_R)) {
+			load_shader_program(&shaders, shader_program_0, "test.vert", "test.frag");
 		}
 	}
 
